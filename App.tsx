@@ -31,7 +31,7 @@ import CompassHeading from 'react-native-compass-heading';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ARKA PLAN BİLDİRİM VE ALARM MOTORU
-import notifee, { TriggerType, AndroidImportance, TimestampTrigger } from '@notifee/react-native';
+import notifee, { TriggerType, AndroidImportance, TimestampTrigger, AndroidCategory, AndroidVisibility } from '@notifee/react-native';
 
 // SES MOTORU (Ezan ve Kuran Dinletisi İçin)
 // @ts-ignore
@@ -914,7 +914,7 @@ const App = () => {
     await notifee.cancelAllNotifications();
 
     const channelId = await notifee.createChannel({
-      id: 'adhan_channel_v3', // İŞTE BURAYI DEĞİŞTİRİYORUZ (v3 yaptık)
+      id: 'adhan_channel_offline',
       name: 'Ezan Vakti',
       sound: 'ezan', // Burası böyle kalacak
       importance: AndroidImportance.HIGH,
@@ -953,6 +953,8 @@ const App = () => {
             sound: 'ezan',
             importance: AndroidImportance.HIGH,
             pressAction: { id: 'default' },
+            category: AndroidCategory.ALARM, // Android'e bunun normal bildirim değil, ALARM olduğunu söyler
+            visibility: AndroidVisibility.PUBLIC, // Kilit ekranında görünmesini sağlar
           },
         },
         trigger,
@@ -979,10 +981,25 @@ const App = () => {
     fetchTimings();
   }, [notificationsEnabled]);
 
-  const handlePrayerTimeTrigger = (prayerName: string) => {
+ const handlePrayerTimeTrigger = (prayerName: string) => {
     if(!notificationsEnabled) return; 
+
     setNotifTitle(`${t.prayerTimeArrived || 'Vakti Geldi'} (${prayerName})`);
     Animated.spring(notifAnim, { toValue: 50, useNativeDriver: true }).start();
+
+    try {
+      // İNTERNET YOK! Direkt içine gömdüğümüz dosyayı çalıştırır.
+      const adhanSound = new Sound('ezan.mp3', Sound.MAIN_BUNDLE, (error: any) => {
+        if (!error) {
+          adhanSound.play(() => { adhanSound.release(); });
+        } else {
+          console.log("Lokal ses çalma hatası:", error);
+        }
+      });
+    } catch (e) {
+      console.log("Ses sistemi hatası:", e);
+    }
+
     setTimeout(() => {
       Animated.timing(notifAnim, { toValue: -150, duration: 500, useNativeDriver: true }).start();
     }, 20000);
@@ -1434,7 +1451,31 @@ const App = () => {
                 <Text style={styles.quranTitleText} adjustsFontSizeToFit numberOfLines={1}>{quranList[currentSurahIdx].name}</Text>
                 <Text style={styles.quranSubtitleText}>{quranList[currentSurahIdx].reciter}</Text>
                 <View style={styles.progressContainer}>
-                  <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${durationSeconds > 0 ? (playbackProgress / durationSeconds) * 100 : 0}%` }]} /></View>
+                  
+
+
+
+                  <TouchableOpacity 
+  activeOpacity={0.9} 
+  style={{ paddingVertical: 10, width: '100%', justifyContent: 'center' }} 
+  onPress={(e) => {
+    if (durationSeconds > 0 && soundRef.current) {
+      const barWidth = width * 0.84; // Çubuğun ekrandaki toplam genişliği
+      const seekTime = (e.nativeEvent.locationX / barWidth) * durationSeconds;
+      soundRef.current.setCurrentTime(seekTime);
+      setPlaybackProgress(seekTime);
+    }
+  }}
+>
+  <View style={styles.progressBarBg} pointerEvents="none">
+    <View style={[styles.progressBarFill, { width: `${durationSeconds > 0 ? (playbackProgress / durationSeconds) * 100 : 0}%` }]} />
+  </View>
+</TouchableOpacity>
+                  
+
+
+
+                  
                   <View style={styles.progressTimeRow}><Text style={styles.progressTimeText}>{formatTime(playbackProgress)}</Text><Text style={styles.progressTimeText}>{formatTime(durationSeconds)}</Text></View>
                 </View>
                 <View style={styles.playerControlsRow}>
@@ -1802,7 +1843,7 @@ const App = () => {
               <Text style={[styles.nostalgicItemText, { textAlign: 'center', marginBottom: 20 }]}>"Gerçek özgürlük, ekrana değil; Rabbine ve kalbine bağlanmaktır."</Text>
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ fontSize: 50, marginBottom: 20 }}>📵</Text>
-                <TouchableOpacity style={[styles.saveBudgetButtonHalf, {width: '80%', paddingVertical: 15}]} activeOpacity={0.6} onPress={() => Alert.alert('Dijital İtikaf', 'İtikaf niyetiniz kabul olsun. Şimdi telefonu sessize alıp kenara bırakabilirsiniz.')}><Text style={styles.saveBudgetBtnText}>Niyet Et ve Başla</Text></TouchableOpacity>
+               <TouchableOpacity style={[styles.saveBudgetButtonHalf, {width: '80%', paddingVertical: 15, height: 'auto', minHeight: 55, flex: 0}]} activeOpacity={0.6} onPress={() => Alert.alert('Dijital İtikaf', 'İtikaf niyetiniz kabul olsun. Şimdi telefonu sessize alıp kenara bırakabilirsiniz.')}><Text style={styles.saveBudgetBtnText}>Niyet Et ve Başla</Text></TouchableOpacity>
               </View>
             </ScrollView>
           </View>
@@ -2050,7 +2091,7 @@ const styles = StyleSheet.create({
   activePrayerText: { color: '#FFFFFF', fontWeight: 'bold' },
   biorhythmContent: { flex: 1, justifyContent: 'space-around', paddingVertical: 5 },
   bioRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  bioLabel: { width: width * 0.18, color: '#E0E6ED', fontSize: width * 0.035 },
+  bioLabel: { width: width * 0.25, color: '#E0E6ED', fontSize: width * 0.035 },
   bioBarBg: { flex: 1, height: height * 0.008, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 5, marginHorizontal: 10, overflow: 'hidden' },
   bioBarFill: { height: '100%', borderRadius: 5 },
   bioPercent: { width: width * 0.1, color: '#FFFFFF', fontSize: width * 0.035, fontWeight: 'bold', textAlign: 'right' },
