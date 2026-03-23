@@ -8,7 +8,21 @@
       "backgroundColor": "#050812"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildConfig": true
+          }
+        }
+      ]
     ],
     "android": {
       "package": "com.mehmetkerem.mihver",

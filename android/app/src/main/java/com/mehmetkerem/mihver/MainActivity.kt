@@ -3,9 +3,6 @@ package com.mehmetkerem.mihver
 import android.os.Build
 import android.os.Bundle
 
-import com.mehmetkerem.mihver.R
-import com.mehmetkerem.mihver.BuildConfig
-
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled

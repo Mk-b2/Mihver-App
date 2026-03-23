@@ -87,9 +87,14 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.mehmetkerem.mihver"
+    namespace 'com.mehmetkerem.mihver'
+    
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
-        applicationId "com.mehmetkerem.mihver"
+        applicationId 'com.mehmetkerem.mihver'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

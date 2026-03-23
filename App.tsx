@@ -24,6 +24,8 @@ import {
   LogBox
 } from 'react-native';
 
+import mobileAds, { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+
 // SENSÖR MOTORU (CANLI KIBLE İÇİN)
 import CompassHeading from 'react-native-compass-heading';
 
@@ -38,6 +40,11 @@ import notifee, { TriggerType, AndroidImportance, TimestampTrigger, AndroidCateg
 import Sound from 'react-native-sound';
 
 Sound.setCategory('Playback');
+
+// ARKA PLAN TETİKLEYİCİSİ (Ekran kapalıyken uygulamanın çökmesini engeller)
+notifee.onBackgroundEvent(async ({ type, detail }) => {
+  console.log('Arka plan ezanı tetiklendi');
+});
 
 // Bütün sarı uyarı ekranlarını gizler ve uygulamanın donmasını engeller
 LogBox.ignoreAllLogs();
@@ -757,6 +764,8 @@ interface Scores {
   2: number;
 }
 
+const interstitial = InterstitialAd.createForAdRequest(TestIds.INTERSTITIAL);
+
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -788,6 +797,31 @@ const App = () => {
   const [notifTitle, setNotifTitle] = useState('');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
+  // === GOOGLE ADMOB REKLAM KODU BAŞLANGICI ===
+  const [adLoaded, setAdLoaded] = useState(false);
+
+  useEffect(() => {
+    let unsubscribe: any = null;
+
+    // 1. Önce Google AdMob motorunu çalıştırıyoruz
+    mobileAds()
+      .initialize()
+      .then(() => {
+        // 2. Motor hazır olunca reklamı arka planda yüklüyoruz
+        unsubscribe = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+          setAdLoaded(true);
+          interstitial.show(); 
+        });
+        interstitial.load();
+      });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+  // === GOOGLE ADMOB REKLAM KODU BİTİŞİ ===
   useEffect(() => {
     const kbShow = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const kbHide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -914,7 +948,7 @@ const App = () => {
     await notifee.cancelAllNotifications();
 
     const channelId = await notifee.createChannel({
-      id: 'adhan_channel_offline',
+      id: 'ezan_kanali_v2', // KANALIN KİMLİĞİNİ YENİLEDİK Kİ SESİ TANIYABİLSİN
       name: 'Ezan Vakti',
       sound: 'ezan', // Burası böyle kalacak
       importance: AndroidImportance.HIGH,
@@ -1226,6 +1260,15 @@ const App = () => {
     }
   };
 
+  const handleDeleteZikir = (idToDelete: string) => {
+    // Listeden zikri çıkar
+    setZikirList(prev => prev.filter(z => z.id !== idToDelete));
+    // Eğer silinen zikir o an ekranda seçiliyse, 1. zikre (Sübhanallah) geri dön
+    if (activeZikirId === idToDelete) {
+      setActiveZikirId('1');
+    }
+  };
+
   const calculateDailyBudget = () => {
     const income = parseFloat(monthlyIncome) || 0;
     const expense = parseFloat(fixedExpense) || 0;
@@ -1267,7 +1310,14 @@ const App = () => {
 
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || seconds <= 0) return "00:00";
-    return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const RenderKazaRow = ({ title, kazaKey }: { title: string, kazaKey: keyof typeof kazaList }) => (
@@ -1970,8 +2020,16 @@ const App = () => {
             {!isKeyboardVisible && (
               <ScrollView style={styles.dropdownList}>
                 {zikirList.map(z => (
-                  <TouchableOpacity key={z.id} style={[styles.dropdownItem, activeZikirId === z.id && styles.activeDropdownItem]} activeOpacity={0.6} onPress={() => { setActiveZikirId(z.id); setDropdownVisible(false); }}>
-                    <Text style={[styles.dropdownItemText, activeZikirId === z.id && styles.activeDropdownItemText]} numberOfLines={1}>{z.text}</Text>
+                  <TouchableOpacity key={z.id} style={[styles.dropdownItem, activeZikirId === z.id && styles.activeDropdownItem, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} activeOpacity={0.6} onPress={() => { setActiveZikirId(z.id); setDropdownVisible(false); }}>
+                    <Text style={[styles.dropdownItemText, activeZikirId === z.id && styles.activeDropdownItemText, { flex: 1, textAlign: 'left', paddingLeft: 10 }]} numberOfLines={1}>{z.text}</Text>
+                    
+                    {/* Sadece sonradan eklenen zikirlerde (id uzunluğu 5'ten büyük olanlarda) silme butonu çıksın */}
+                    {z.id.length > 5 && (
+                      <TouchableOpacity onPress={() => handleDeleteZikir(z.id)} style={{ padding: 5 }}>
+                        <Text style={{ fontSize: 18 }}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+
                   </TouchableOpacity>
                 ))}
               </ScrollView>
